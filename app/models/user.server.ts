@@ -1,56 +1,50 @@
-import type { Password, User } from "@prisma/client";
+import type { User } from "./types";
 import bcrypt from "bcryptjs";
+import { randomUUID } from "crypto";
+import { db } from "~/db.server";
 
-import { prisma } from "~/db.server";
-
-export type { User } from "@prisma/client";
+export type { User } from "./types";
 
 export async function getUserById(id: User["id"]) {
-  return prisma.user.findUnique({ where: { id } });
+  return db.users.find((user) => user.id === id);
 }
 
 export async function getUserByEmail(email: User["email"]) {
-  return prisma.user.findUnique({ where: { email } });
+  return db.users.find((user) => user.email === email);
 }
 
 export async function createUser(email: User["email"], password: string) {
   const hashedPassword = await bcrypt.hash(password, 10);
 
-  return prisma.user.create({
-    data: {
-      email,
-      password: {
-        create: {
-          hash: hashedPassword,
-        },
-      },
-    },
-  });
+  const newUser: User = {
+    id: randomUUID(),
+    email: email,
+    password: hashedPassword,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+
+  db.users.push(newUser);
+
+  return newUser;
 }
 
 export async function deleteUserByEmail(email: User["email"]) {
-  return prisma.user.delete({ where: { email } });
+  db.users = db.users.filter((user) => user.email !== email);
 }
 
 export async function verifyLogin(
   email: User["email"],
-  password: Password["hash"]
+  password: User["password"]
 ) {
-  const userWithPassword = await prisma.user.findUnique({
-    where: { email },
-    include: {
-      password: true,
-    },
-  });
+  const userWithPassword = await db.users.find((user) => user.email === email);
+  console.log("userWithPassword", userWithPassword);
 
   if (!userWithPassword || !userWithPassword.password) {
     return null;
   }
 
-  const isValid = await bcrypt.compare(
-    password,
-    userWithPassword.password.hash
-  );
+  const isValid = await bcrypt.compare(password, userWithPassword.password);
 
   if (!isValid) {
     return null;

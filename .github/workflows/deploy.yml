@@ -103,15 +103,6 @@ jobs:
         with:
           useLockFile: false
 
-      - name: 🐳 Docker compose
-        # the sleep is just there to give time for postgres to get started
-        run: docker-compose up -d && sleep 3
-        env:
-          DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/postgres"
-
-      - name: 🛠 Setup Database
-        run: npx prisma migrate reset --force
-
       - name: ⚙️ Build
         run: npm run build
 
@@ -135,13 +126,6 @@ jobs:
       - name: ⬇️ Checkout repo
         uses: actions/checkout@v3
 
-      - name: 👀 Read app name
-        uses: SebRollen/toml-action@v1.0.0
-        id: app_name
-        with:
-          file: "fly.toml"
-          field: "app"
-
       - name: 🐳 Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
 
@@ -154,7 +138,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-buildx-
 
-      - name: 🔑 Fly Registry Auth
+      - name: 🔑 AWS ECR Auth
         uses: docker/login-action@v2
         with:
           registry: registry.fly.io
@@ -195,13 +179,6 @@ jobs:
 
       - name: ⬇️ Checkout repo
         uses: actions/checkout@v3
-
-      - name: 👀 Read app name
-        uses: SebRollen/toml-action@v1.0.0
-        id: app_name
-        with:
-          file: "fly.toml"
-          field: "app"
 
       - name: 🚀 Deploy Staging
         if: ${{ github.ref == 'refs/heads/dev' }}

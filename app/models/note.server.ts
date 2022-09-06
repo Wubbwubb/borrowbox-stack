@@ -1,8 +1,8 @@
-import type { User, Note } from "@prisma/client";
+import type { Note, User } from "./types";
+import { randomUUID } from "crypto";
+import { db } from "~/db.server";
 
-import { prisma } from "~/db.server";
-
-export type { Note } from "@prisma/client";
+export type { Note } from "./types";
 
 export function getNote({
   id,
@@ -10,18 +10,13 @@ export function getNote({
 }: Pick<Note, "id"> & {
   userId: User["id"];
 }) {
-  return prisma.note.findFirst({
-    select: { id: true, body: true, title: true },
-    where: { id, userId },
-  });
+  return db.notes.find((note) => note.id === id && note.userId === userId);
 }
 
 export function getNoteListItems({ userId }: { userId: User["id"] }) {
-  return prisma.note.findMany({
-    where: { userId },
-    select: { id: true, title: true },
-    orderBy: { updatedAt: "desc" },
-  });
+  return db.notes
+    .filter((note) => note.userId === userId)
+    .sort((a, b) => b.updatedAt.getDate() - a.updatedAt.getDate());
 }
 
 export function createNote({
@@ -31,24 +26,25 @@ export function createNote({
 }: Pick<Note, "body" | "title"> & {
   userId: User["id"];
 }) {
-  return prisma.note.create({
-    data: {
-      title,
-      body,
-      user: {
-        connect: {
-          id: userId,
-        },
-      },
-    },
-  });
+  const newNote: Note = {
+    id: randomUUID(),
+    title: title,
+    body: body,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    userId: userId,
+  };
+
+  db.notes.push(newNote);
+
+  return newNote;
 }
 
 export function deleteNote({
   id,
   userId,
 }: Pick<Note, "id"> & { userId: User["id"] }) {
-  return prisma.note.deleteMany({
-    where: { id, userId },
-  });
+  db.notes = db.notes.filter(
+    (note) => note.id !== id || note.userId !== userId
+  );
 }

@@ -1,10 +1,11 @@
-import { PrismaClient } from "@prisma/client";
-import invariant from "tiny-invariant";
+import type { Note, User } from "~/models/types";
 
-let prisma: PrismaClient;
+type DBType = { users: Array<User>; notes: Array<Note> };
+
+let db: DBType;
 
 declare global {
-  var __db__: PrismaClient;
+  var __db__: DBType;
 }
 
 // this is needed because in development we don't want to restart
@@ -12,51 +13,16 @@ declare global {
 // create a new connection to the DB with every change either.
 // in production we'll have a single connection to the DB.
 if (process.env.NODE_ENV === "production") {
-  prisma = getClient();
+  db = createDB();
 } else {
   if (!global.__db__) {
-    global.__db__ = getClient();
+    global.__db__ = createDB();
   }
-  prisma = global.__db__;
+  db = global.__db__;
 }
 
-function getClient() {
-  const { DATABASE_URL } = process.env;
-  invariant(typeof DATABASE_URL === "string", "DATABASE_URL env var not set");
-
-  const databaseUrl = new URL(DATABASE_URL);
-
-  const isLocalHost = databaseUrl.hostname === "localhost";
-
-  const PRIMARY_REGION = isLocalHost ? null : process.env.PRIMARY_REGION;
-  const FLY_REGION = isLocalHost ? null : process.env.FLY_REGION;
-
-  const isReadReplicaRegion = !PRIMARY_REGION || PRIMARY_REGION === FLY_REGION;
-
-  if (!isLocalHost) {
-    databaseUrl.host = `${FLY_REGION}.${databaseUrl.host}`;
-    if (!isReadReplicaRegion) {
-      // 5433 is the read-replica port
-      databaseUrl.port = "5433";
-    }
-  }
-
-  console.log(`🔌 setting up prisma client to ${databaseUrl.host}`);
-  // NOTE: during development if you change anything in this function, remember
-  // that this only runs once per server restart and won't automatically be
-  // re-run per request like everything else is. So if you need to change
-  // something in this file, you'll need to manually restart the server.
-  const client = new PrismaClient({
-    datasources: {
-      db: {
-        url: databaseUrl.toString(),
-      },
-    },
-  });
-  // connect eagerly
-  client.$connect();
-
-  return client;
+function createDB(): DBType {
+  return { users: [], notes: [] };
 }
 
-export { prisma };
+export { db };
