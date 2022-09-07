@@ -15,3 +15,6 @@ node_modules
 /cypress/videos
 
 /app/styles/tailwind.css
+
+# Ignore Jetbrains IDE related files
+/.idea
