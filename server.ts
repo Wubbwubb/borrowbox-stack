@@ -2,9 +2,46 @@ import path from "path";
 import express from "express";
 import compression from "compression";
 import morgan from "morgan";
-import { createRequestHandler } from "@remix-run/express";
+import {
+  createRequestHandler,
+  GetLoadContextFunction,
+} from "@remix-run/express";
+import { adminRole, initKeycloak } from "~/keycloak.server";
+import session, { MemoryStore } from "express-session";
+import { Token } from "keycloak-connect";
+
+export type User = {
+  id: string;
+  email: string;
+  username: string;
+  name: string;
+};
+
+export type AuthInfo = {
+  user: User;
+  accessToken: string;
+  logoutUrl: string;
+};
+
+export type AuthInfoContext = {
+  authInfo: AuthInfo;
+};
 
 const app = express();
+
+const memoryStore = new MemoryStore();
+
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET as string,
+    resave: false,
+    saveUninitialized: true,
+    store: memoryStore,
+  })
+);
+
+const keycloak = initKeycloak(memoryStore);
+app.use(keycloak.middleware());
 
 app.use((req, res, next) => {
   // helpful headers:
@@ -40,15 +77,52 @@ app.use(morgan("tiny"));
 const MODE = process.env.NODE_ENV;
 const BUILD_DIR = path.join(process.cwd(), "build");
 
+const getLoadContext: GetLoadContextFunction = (req): AuthInfoContext => {
+  const authInfo = (req as any).authInfo as AuthInfo;
+
+  return { authInfo };
+};
+
 app.all(
   "*",
+  keycloak.protect((accessToken) => accessToken.hasRealmRole(adminRole)),
+  async (req, res, next) => {
+    const grant = await keycloak.getGrant(req, res);
+
+    if (grant.access_token) {
+      const userInfo = await keycloak.grantManager.userInfo<
+        Token,
+        {
+          email: string;
+          preferred_username: string;
+          name: string;
+          sub: string;
+        }
+      >(grant.access_token);
+
+      const user: User = {
+        id: userInfo.sub,
+        email: userInfo.email as string,
+        username: userInfo.preferred_username as string,
+        name: userInfo.name as string,
+      };
+
+      (req as any).authInfo = {
+        user,
+        accessToken: (grant.access_token as any).token,
+      };
+    }
+
+    next();
+  },
   MODE === "production"
-    ? createRequestHandler({ build: require(BUILD_DIR) })
+    ? createRequestHandler({ build: require(BUILD_DIR), getLoadContext })
     : (...args) => {
         purgeRequireCache();
         const requestHandler = createRequestHandler({
           build: require(BUILD_DIR),
           mode: MODE,
+          getLoadContext,
         });
         return requestHandler(...args);
       }

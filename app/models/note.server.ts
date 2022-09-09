@@ -1,6 +1,7 @@
-import type { Note, User } from "./types";
+import type { Note } from "./types";
 import { randomUUID } from "crypto";
 import { db } from "~/db.server";
+import type { User } from "../../server";
 
 export type { Note } from "./types";
 

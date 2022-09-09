@@ -1,4 +1,5 @@
-import type { Note, User } from "~/models/types";
+import type { Note } from "~/models/types";
+import type { User } from "../server";
 
 type DBType = { users: Array<User>; notes: Array<Note> };
 
