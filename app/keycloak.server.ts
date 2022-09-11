@@ -25,7 +25,8 @@ const keycloakConfig: KeycloakConfig = {
   "ssl-required": process.env.KEYCLOAK_SSL_REQUIRED,
   realm: process.env.KEYCLOAK_REALM,
 };
-const adminRole: string | undefined = process.env.KEYCLOAK_REQUIRED_REALM_ROLE;
+const requiredRealmRole: string | undefined =
+  process.env.KEYCLOAK_REQUIRED_REALM_ROLE;
 
 function initKeycloak(store: any) {
   if (_keycloak) {
@@ -38,4 +39,4 @@ function initKeycloak(store: any) {
   }
 }
 
-export { adminRole, initKeycloak };
+export { requiredRealmRole, initKeycloak };

@@ -1,12 +1,12 @@
 import path from "path";
-import express from "express";
+import express, { RequestHandler } from "express";
 import compression from "compression";
 import morgan from "morgan";
 import {
   createRequestHandler,
   GetLoadContextFunction,
 } from "@remix-run/express";
-import { adminRole, initKeycloak } from "~/keycloak.server";
+import { requiredRealmRole, initKeycloak } from "~/keycloak.server";
 import session, { MemoryStore } from "express-session";
 import { Token } from "keycloak-connect";
 
@@ -20,7 +20,6 @@ export type User = {
 export type AuthInfo = {
   user: User;
   accessToken: string;
-  logoutUrl: string;
 };
 
 export type AuthInfoContext = {
@@ -29,16 +28,19 @@ export type AuthInfoContext = {
 
 const app = express();
 
-// TODO use distributed cache like https://www.npmjs.com/package/connect-memcached or https://www.npmjs.com/package/connect-redis
-const memoryStore = new MemoryStore();
-const keycloak = initKeycloak(memoryStore);
+// TODO use distributed cache like
+//  https://www.npmjs.com/package/connect-memcached
+//  or https://www.npmjs.com/package/connect-redis
+//  or maybe use cookies?
+const sessionStore = new MemoryStore();
+const keycloak = initKeycloak(sessionStore);
 
 app.use(
   session({
     secret: process.env.SESSION_SECRET as string,
     resave: false,
     saveUninitialized: true,
-    store: memoryStore,
+    store: sessionStore,
   })
 );
 app.use(keycloak.middleware());
@@ -77,8 +79,56 @@ app.use(morgan("tiny"));
 const MODE = process.env.NODE_ENV;
 const BUILD_DIR = path.join(process.cwd(), "build");
 
-const getLoadContext: GetLoadContextFunction = (req): AuthInfoContext => {
-  const authInfo = (req as any).authInfo as AuthInfo;
+const enrichWithAuthInfo: RequestHandler = async (req, res, next) => {
+  const requestSession = req.session as any;
+  const nextAfterAuthInfoHandling = !requestSession.authInfo;
+
+  if (!nextAfterAuthInfoHandling) {
+    // In this case, the session already contains an existing authInfo object.
+    // We can go on with the next request handler in the chain.
+    // In parallel, we reassign the current auth info to the session.
+    next();
+  }
+
+  const grant = await keycloak.getGrant(req, res);
+
+  if (grant.access_token) {
+    const userInfo = await keycloak.grantManager.userInfo<
+      Token,
+      {
+        email: string;
+        preferred_username: string;
+        name: string;
+        sub: string;
+      }
+    >(grant.access_token);
+
+    const user: User = {
+      id: userInfo.sub,
+      email: userInfo.email as string,
+      username: userInfo.preferred_username as string,
+      name: userInfo.name as string,
+    };
+
+    requestSession.authInfo = <AuthInfo>{
+      user,
+      accessToken: (grant.access_token as any).token,
+    };
+
+    sessionStore.set(req.sessionID, requestSession);
+  }
+
+  if (nextAfterAuthInfoHandling) {
+    // We only have to process the next request handler in the chain,
+    // if did not already.
+    next();
+  }
+};
+
+const useAuthInfoForLoadContext: GetLoadContextFunction = (
+  req
+): AuthInfoContext => {
+  const authInfo = (req.session as any).authInfo as AuthInfo;
 
   return { authInfo };
 };
@@ -86,45 +136,21 @@ const getLoadContext: GetLoadContextFunction = (req): AuthInfoContext => {
 app.all(
   "*",
   keycloak.protect(
-    (accessToken) => !adminRole || accessToken.hasRealmRole(adminRole)
+    (accessToken) =>
+      !requiredRealmRole || accessToken.hasRealmRole(requiredRealmRole)
   ),
-  async (req, res, next) => {
-    const grant = await keycloak.getGrant(req, res);
-
-    if (grant.access_token) {
-      const userInfo = await keycloak.grantManager.userInfo<
-        Token,
-        {
-          email: string;
-          preferred_username: string;
-          name: string;
-          sub: string;
-        }
-      >(grant.access_token);
-
-      const user: User = {
-        id: userInfo.sub,
-        email: userInfo.email as string,
-        username: userInfo.preferred_username as string,
-        name: userInfo.name as string,
-      };
-
-      (req as any).authInfo = {
-        user,
-        accessToken: (grant.access_token as any).token,
-      };
-    }
-
-    next();
-  },
+  enrichWithAuthInfo,
   MODE === "production"
-    ? createRequestHandler({ build: require(BUILD_DIR), getLoadContext })
+    ? createRequestHandler({
+        build: require(BUILD_DIR),
+        getLoadContext: useAuthInfoForLoadContext,
+      })
     : (...args) => {
         purgeRequireCache();
         const requestHandler = createRequestHandler({
           build: require(BUILD_DIR),
           mode: MODE,
-          getLoadContext,
+          getLoadContext: useAuthInfoForLoadContext,
         });
         return requestHandler(...args);
       }
