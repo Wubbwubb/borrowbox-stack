@@ -17,7 +17,6 @@ invariant(
   "KEYCLOAK_SSL_REQUIRED must be set"
 );
 invariant(process.env.KEYCLOAK_REALM, "KEYCLOAK_REALM must be set");
-invariant(process.env.KEYCLOAK_ADMIN_ROLE, "KEYCLOAK_ADMIN_ROLE must be set");
 
 const keycloakConfig: KeycloakConfig = {
   "confidential-port": process.env.KEYCLOAK_CONFIDENTIAL_PORT,
@@ -26,7 +25,7 @@ const keycloakConfig: KeycloakConfig = {
   "ssl-required": process.env.KEYCLOAK_SSL_REQUIRED,
   realm: process.env.KEYCLOAK_REALM,
 };
-const adminRole: string = process.env.KEYCLOAK_ADMIN_ROLE;
+const adminRole: string | undefined = process.env.KEYCLOAK_REQUIRED_REALM_ROLE;
 
 function initKeycloak(store: any) {
   if (_keycloak) {

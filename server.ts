@@ -29,7 +29,9 @@ export type AuthInfoContext = {
 
 const app = express();
 
+// TODO use distributed cache like https://www.npmjs.com/package/connect-memcached or https://www.npmjs.com/package/connect-redis
 const memoryStore = new MemoryStore();
+const keycloak = initKeycloak(memoryStore);
 
 app.use(
   session({
@@ -39,8 +41,6 @@ app.use(
     store: memoryStore,
   })
 );
-
-const keycloak = initKeycloak(memoryStore);
 app.use(keycloak.middleware());
 
 app.use((req, res, next) => {
@@ -85,7 +85,9 @@ const getLoadContext: GetLoadContextFunction = (req): AuthInfoContext => {
 
 app.all(
   "*",
-  keycloak.protect((accessToken) => accessToken.hasRealmRole(adminRole)),
+  keycloak.protect(
+    (accessToken) => !adminRole || accessToken.hasRealmRole(adminRole)
+  ),
   async (req, res, next) => {
     const grant = await keycloak.getGrant(req, res);
 
