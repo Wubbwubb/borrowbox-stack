@@ -4,14 +4,12 @@ import { Form, useCatch, useLoaderData } from "@remix-run/react";
 import invariant from "tiny-invariant";
 
 import { deleteNote, getNote } from "~/models/note.server";
-import { AuthInfoLoadContext } from "../../../server";
+import { requireUserCredentials } from "~/session.server";
 
-export async function loader({ context, params }: LoaderArgs) {
+export async function loader({ request, params }: LoaderArgs) {
   const {
-    authInfo: {
-      user: { id: userId },
-    },
-  } = context as AuthInfoLoadContext;
+    user: { id: userId },
+  } = await requireUserCredentials(request);
 
   invariant(params.noteId, "noteId not found");
 
@@ -22,12 +20,10 @@ export async function loader({ context, params }: LoaderArgs) {
   return json({ note });
 }
 
-export async function action({ context, params }: ActionArgs) {
+export async function action({ request, params }: ActionArgs) {
   const {
-    authInfo: {
-      user: { id: userId },
-    },
-  } = context as AuthInfoLoadContext;
+    user: { id: userId },
+  } = await requireUserCredentials(request);
 
   invariant(params.noteId, "noteId not found");
 
@@ -45,10 +41,7 @@ export default function NoteDetailsPage() {
       <p className="py-6">{data.note.body}</p>
       <hr className="my-4" />
       <Form method="post">
-        <button
-          type="submit"
-          className="rounded bg-blue-500  py-2 px-4 text-white hover:bg-blue-600 focus:bg-blue-400"
-        >
+        <button type="submit" className="rounded bg-blue-500  py-2 px-4 text-white hover:bg-blue-600 focus:bg-blue-400">
           Delete
         </button>
       </Form>

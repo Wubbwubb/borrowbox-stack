@@ -1,7 +1,6 @@
 import type { Note } from "~/models/types";
-import type { User } from "../server";
 
-type DBType = { users: Array<User>; notes: Array<Note> };
+type DBType = { notes: Array<Note> };
 
 let db: DBType;
 
@@ -23,7 +22,7 @@ if (process.env.NODE_ENV === "production") {
 }
 
 function createDB(): DBType {
-  return { users: [], notes: [] };
+  return { notes: [] };
 }
 
 export { db };

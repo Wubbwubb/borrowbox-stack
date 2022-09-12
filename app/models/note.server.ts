@@ -1,7 +1,7 @@
 import type { Note } from "./types";
 import { randomUUID } from "crypto";
 import { db } from "~/db.server";
-import type { User } from "../../server";
+import type { User } from "~/session.server";
 
 export type { Note } from "./types";
 
@@ -41,11 +41,6 @@ export function createNote({
   return newNote;
 }
 
-export function deleteNote({
-  id,
-  userId,
-}: Pick<Note, "id"> & { userId: User["id"] }) {
-  db.notes = db.notes.filter(
-    (note) => note.id !== id || note.userId !== userId
-  );
+export function deleteNote({ id, userId }: Pick<Note, "id"> & { userId: User["id"] }) {
+  db.notes = db.notes.filter((note) => note.id !== id || note.userId !== userId);
 }
