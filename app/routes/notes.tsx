@@ -4,11 +4,15 @@ import { Link, NavLink, Outlet, useLoaderData } from "@remix-run/react";
 
 import { getNoteListItems } from "~/models/note.server";
 import { useUser } from "~/utils";
-import { AuthInfo } from "../../server";
+import { AuthInfoLoadContext } from "../../server";
 
 export async function loader({ context }: LoaderArgs) {
-  const authInfo = context.authInfo as AuthInfo;
-  const userId = authInfo.user.id;
+  const {
+    authInfo: {
+      user: { id: userId },
+    },
+  } = context as AuthInfoLoadContext;
+
   const noteListItems = await getNoteListItems({ userId });
   return json({ noteListItems });
 }

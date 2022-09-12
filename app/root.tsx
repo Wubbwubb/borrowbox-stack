@@ -10,7 +10,7 @@ import {
 } from "@remix-run/react";
 
 import tailwindStylesheetUrl from "./styles/tailwind.css";
-import { AuthInfo } from "../server";
+import { AuthInfoLoadContext } from "../server";
 
 export const links: LinksFunction = () => {
   return [{ rel: "stylesheet", href: tailwindStylesheetUrl }];
@@ -23,9 +23,12 @@ export const meta: MetaFunction = () => ({
 });
 
 export async function loader({ context }: LoaderArgs) {
-  const authInfo = context.authInfo as AuthInfo;
+  const {
+    authInfo: { user },
+  } = context as AuthInfoLoadContext;
+
   return json({
-    user: authInfo.user,
+    user,
   });
 }
 

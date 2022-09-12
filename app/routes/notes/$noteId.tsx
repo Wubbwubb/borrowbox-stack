@@ -4,11 +4,15 @@ import { Form, useCatch, useLoaderData } from "@remix-run/react";
 import invariant from "tiny-invariant";
 
 import { deleteNote, getNote } from "~/models/note.server";
-import { AuthInfo } from "../../../server";
+import { AuthInfoLoadContext } from "../../../server";
 
 export async function loader({ context, params }: LoaderArgs) {
-  const authInfo = context.authInfo as AuthInfo;
-  const userId = authInfo.user.id;
+  const {
+    authInfo: {
+      user: { id: userId },
+    },
+  } = context as AuthInfoLoadContext;
+
   invariant(params.noteId, "noteId not found");
 
   const note = await getNote({ userId, id: params.noteId });
@@ -19,8 +23,12 @@ export async function loader({ context, params }: LoaderArgs) {
 }
 
 export async function action({ context, params }: ActionArgs) {
-  const authInfo = context.authInfo as AuthInfo;
-  const userId = authInfo.user.id;
+  const {
+    authInfo: {
+      user: { id: userId },
+    },
+  } = context as AuthInfoLoadContext;
+
   invariant(params.noteId, "noteId not found");
 
   await deleteNote({ userId, id: params.noteId });

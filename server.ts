@@ -6,8 +6,8 @@ import {
   createRequestHandler,
   GetLoadContextFunction,
 } from "@remix-run/express";
-import { requiredRealmRole, initKeycloak } from "~/keycloak.server";
-import session, { MemoryStore } from "express-session";
+import { initKeycloak, requiredRealmRole } from "~/keycloak.server";
+import session, { MemoryStore, Session, SessionData } from "express-session";
 import { Token } from "keycloak-connect";
 
 export type User = {
@@ -22,9 +22,11 @@ export type AuthInfo = {
   accessToken: string;
 };
 
-export type AuthInfoContext = {
+export type AuthInfoLoadContext = {
   authInfo: AuthInfo;
 };
+
+type CustomSession = Session & Partial<SessionData> & AuthInfoLoadContext;
 
 const app = express();
 
@@ -80,7 +82,7 @@ const MODE = process.env.NODE_ENV;
 const BUILD_DIR = path.join(process.cwd(), "build");
 
 const enrichWithAuthInfo: RequestHandler = async (req, res, next) => {
-  const requestSession = req.session as any;
+  const requestSession = req.session as CustomSession;
   const nextAfterAuthInfoHandling = !requestSession.authInfo;
 
   if (!nextAfterAuthInfoHandling) {
@@ -93,6 +95,17 @@ const enrichWithAuthInfo: RequestHandler = async (req, res, next) => {
   const grant = await keycloak.getGrant(req, res);
 
   if (grant.access_token) {
+    const accessTokenString = (grant.access_token as any).token;
+
+    if (
+      !nextAfterAuthInfoHandling &&
+      accessTokenString === (requestSession.authInfo as AuthInfo).accessToken
+    ) {
+      // In this case we can ignore the reassignment of auth info, since the
+      // access token is still the same.
+      return;
+    }
+
     const userInfo = await keycloak.grantManager.userInfo<
       Token,
       {
@@ -110,9 +123,9 @@ const enrichWithAuthInfo: RequestHandler = async (req, res, next) => {
       name: userInfo.name as string,
     };
 
-    requestSession.authInfo = <AuthInfo>{
+    requestSession.authInfo = {
       user,
-      accessToken: (grant.access_token as any).token,
+      accessToken: accessTokenString,
     };
 
     sessionStore.set(req.sessionID, requestSession);
@@ -127,8 +140,8 @@ const enrichWithAuthInfo: RequestHandler = async (req, res, next) => {
 
 const useAuthInfoForLoadContext: GetLoadContextFunction = (
   req
-): AuthInfoContext => {
-  const authInfo = (req.session as any).authInfo as AuthInfo;
+): AuthInfoLoadContext => {
+  const authInfo = (req.session as CustomSession).authInfo;
 
   return { authInfo };
 };

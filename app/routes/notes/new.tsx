@@ -4,11 +4,14 @@ import { Form, useActionData } from "@remix-run/react";
 import * as React from "react";
 
 import { createNote } from "~/models/note.server";
-import { AuthInfo } from "../../../server";
+import { AuthInfoLoadContext } from "../../../server";
 
 export async function action({ request, context }: ActionArgs) {
-  const authInfo = context.authInfo as AuthInfo;
-  const userId = authInfo.user.id;
+  const {
+    authInfo: {
+      user: { id: userId },
+    },
+  } = context as AuthInfoLoadContext;
 
   const formData = await request.formData();
   const title = formData.get("title");
